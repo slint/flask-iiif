@@ -25,7 +25,7 @@ from .api import (
 )
 
 from .decorators import (
-    api_decorator, error_handler
+    api_decorator, error_handler, http_cache_decorator
 )
 
 from .signals import (
@@ -118,6 +118,7 @@ class IIIFImageAPI(Resource):
     method_decorators = [
         error_handler,
         api_decorator,
+        http_cache_decorator,
     ]
 
     def get(self, version, uuid, region, size, rotation, quality,
@@ -167,14 +168,14 @@ class IIIFImageAPI(Resource):
 
             # prepare image to be serve
             to_serve = image.serve(image_format=image_format)
-            # to_serve = image.serve(image_format=image_format)
             cache_handler.set(key, to_serve.getvalue())
 
         # decide the mime_type from the requested image_format
         mimetype = current_app.config['IIIF_FORMATS'].get(
             image_format, 'image/jpeg'
         )
-        # Built the after request parameters
+
+        # Build the after request parameters
         api_after_request_parameters = dict(
             mimetype=mimetype,
             image=to_serve
@@ -183,12 +184,20 @@ class IIIFImageAPI(Resource):
         # Trigger event after proccess the api request
         iiif_after_process_request.send(self, **api_after_request_parameters)
 
-        # Built the after request parameters
-        api_after_request_parameters = dict(
-            mimetype=mimetype,
-            image=to_serve
-        )
+        rv = send_file(to_serve, mimetype=mimetype)
 
-        # Trigger event after proccess the api request
-        iiif_after_process_request.send(self, **api_after_request_parameters)
-        return send_file(to_serve, mimetype=mimetype)
+        # NOTE: This should be done before actually in order to return early
+        # There is a snippet for this at `http://flask.pocoo.org/snippets/95/`,
+        # but we can do it easily here as well. Functions from `werkzeug.http`
+        # should be used to keep things tight.
+        if current_iiif.etag_callback:
+            etag = current_iiif.etag_callback(uuid)
+            if etag:
+                rv.set_etag(etag)
+
+        if current_iiif.last_modified_callback:
+            last_mod = current_iiif.last_modified_callback(uuid)
+            if last_mod:
+                rv.last_modified = last_mod
+
+        return rv
