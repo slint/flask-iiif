@@ -25,7 +25,7 @@ from .api import (
 )
 
 from .decorators import (
-    api_decorator, error_handler
+    api_decorator, error_handler, last_modified_decorator
 )
 
 from .signals import (
@@ -118,6 +118,7 @@ class IIIFImageAPI(Resource):
     method_decorators = [
         error_handler,
         api_decorator,
+        last_modified_decorator,
     ]
 
     def get(self, version, uuid, region, size, rotation, quality,
@@ -167,23 +168,14 @@ class IIIFImageAPI(Resource):
 
             # prepare image to be serve
             to_serve = image.serve(image_format=image_format)
-            # to_serve = image.serve(image_format=image_format)
             cache_handler.set(key, to_serve.getvalue())
 
         # decide the mime_type from the requested image_format
         mimetype = current_app.config['IIIF_FORMATS'].get(
             image_format, 'image/jpeg'
         )
-        # Built the after request parameters
-        api_after_request_parameters = dict(
-            mimetype=mimetype,
-            image=to_serve
-        )
 
-        # Trigger event after proccess the api request
-        iiif_after_process_request.send(self, **api_after_request_parameters)
-
-        # Built the after request parameters
+        # Build the after request parameters
         api_after_request_parameters = dict(
             mimetype=mimetype,
             image=to_serve

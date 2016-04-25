@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of Flask-IIIF
-# Copyright (C) 2014, 2015 CERN.
+# Copyright (C) 2014, 2015, 2016 CERN.
 #
 # Flask-IIIF is free software; you can redistribute it and/or modify
 # it under the terms of the Revised BSD License; see LICENSE file for
@@ -176,5 +176,33 @@ class IIIF(object):
             If is not defined, it would just pass.
         """
         self.api_decorator_callback = callback
+
+    def last_modified_handler(self, callback):
+        """Last-Modified header handler.
+
+        .. code-block:: python
+
+            def last_modified(*args, **kwargs):
+                # uuid: <filename>:<timestamp>
+                uuid = kwargs.get('uuid')
+                timestamp = uuid.split(':')[1]
+                from werkzeug.http import http_date
+                return http_date(timestamp)
+            iiif.last_modified_handler(last_modified)
+
+        .. note::
+
+            The callback function must return either a unix timestamp, or a
+            date string matching the RFC1123 format, of the last time the
+            requested file was modified.
+
+            The API will always be decorated with ``last_modified_handler``.
+            If is not defined, it will just pass.
+
+            .. seealso::
+            `werkzeug.http.date_parse
+            <http://werkzeug.pocoo.org/docs/0.11/http/#werkzeug.http.parse_date>`
+        """
+        self.last_modified_callback = callback
 
 __all__ = ('IIIF', '__version__')

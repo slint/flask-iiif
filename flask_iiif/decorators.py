@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of Flask-IIIF
-# Copyright (C) 2015 CERN.
+# Copyright (C) 2015, 2016 CERN.
 #
 # Flask-IIIF is free software; you can redistribute it and/or modify
 # it under the terms of the Revised BSD License; see LICENSE file for
@@ -11,7 +11,7 @@
 
 from functools import wraps
 
-from flask import current_app
+from flask import current_app, make_response, request
 
 from flask_restful import abort
 
@@ -54,4 +54,21 @@ def api_decorator(f):
         if current_iiif.api_decorator_callback:
             current_iiif.api_decorator_callback(*args, **kwargs)
         return f(*args, **kwargs)
+    return inner
+
+
+def last_modified_decorator(f):
+    """API decorator for Last-Modified header."""
+    @wraps(f)
+    def inner(*args, **kwargs):
+        if current_iiif.last_modified_callback:
+            from werkzeug.http import is_resource_modified
+            last_mod = current_iiif.last_modified_callback(*args, **kwargs)
+            modified = is_resource_modified(request.environ,
+                                            last_modified=last_mod)
+            if not modified:
+                return '', 304
+            res = make_response(f(*args, **kwargs))
+            res.headers['Last-Modified'] = last_mod
+            return res
     return inner
